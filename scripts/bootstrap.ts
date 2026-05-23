@@ -85,7 +85,7 @@ async function run() {
   const shouldRun = Boolean(accessPin) || canSeedUsers;
 
   if (!shouldRun) {
-    log("Nessun pin da inizializzare. Imposta ACCESS_PIN e/o OWNER_*/ADMIN_*.");
+    log("Bootstrap opzionale saltato.");
     return;
   }
 
@@ -94,13 +94,11 @@ async function run() {
   if (accessPin) {
     await ensureAccessPinHash(accessPin);
   } else {
-    log("ACCESS_PIN mancante: salto access pin.");
+    log("Access PIN non modificato.");
   }
 
   if (canSeedUsers) {
     await seedUsers();
-  } else {
-    log("OWNER_*/ADMIN_* mancanti: salto seed utenti.");
   }
 }
 

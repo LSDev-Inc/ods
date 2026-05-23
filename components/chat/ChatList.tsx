@@ -63,16 +63,16 @@ export default function ChatList({ basePath }: { basePath: "user" | "admin" | "o
     <div className="grid gap-6">
       <div className="grid gap-4">
         {activeChats.map((chat) => (
-          <Card key={chat.id} className="flex items-center justify-between">
-            <div>
+          <Card key={chat.id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold">Chat {chat.id.slice(-6)}</p>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted break-words">
                 Stato richiesta: {chat.requestStatus} - Stato chat:{" "}
                 {chat.chatStatus === "in_progress" ? "In corso" : "Conclusa"}
               </p>
             </div>
             {chat.requestStatus === "accepted" ? (
-              <Link className="text-sm text-ember" href={`/${basePath}/chat/${chat.id}`}>
+              <Link className="w-full text-center text-sm text-ember hover:text-ember/80 sm:w-auto" href={`/${basePath}/chat/${chat.id}`}>
                 Apri
               </Link>
             ) : (

@@ -96,25 +96,31 @@ export default function AdminList() {
       {actionError ? <p className="text-sm text-ember">{actionError}</p> : null}
       {admins.map((admin) => (
         <Card key={admin.id}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
             <div>
-              <p className="text-sm text-muted">Admin</p>
-              <p className="text-base font-semibold">{admin.username}</p>
+              <p className="text-xs text-muted">Admin</p>
+              <p className="mt-1 text-sm font-semibold">{admin.username}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 size="sm"
                 variant={admin.disabled ? "outline" : "ghost"}
                 onClick={() => updateAdmin(admin.id, { disabled: !admin.disabled })}
+                className="w-full sm:w-auto"
               >
                 {admin.disabled ? "Riattiva" : "Disattiva"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => deleteAdmin(admin.id)}>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => deleteAdmin(admin.id)}
+                className="w-full sm:w-auto"
+              >
                 Elimina
               </Button>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Input
               label="Reset password"
               type="password"
@@ -130,10 +136,11 @@ export default function AdminList() {
               onChange={(e) => setResetPin((prev) => ({ ...prev, [admin.id]: e.target.value }))}
             />
           </div>
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <Button
               size="sm"
               onClick={() => rotateCredentials(admin.id)}
+              className="w-full sm:w-auto"
             >
               Ruota credenziali + chiavi
             </Button>

@@ -1,50 +1,113 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
 import { encryptMessage } from "../../lib/crypto/client";
+import {
+  addCartItem,
+  cartItemKey,
+  CART_UPDATED_EVENT,
+  clearCartItems,
+  readCartItems,
+  type CartItem
+} from "../../lib/shop/cart";
+import { formatEuro } from "../../lib/formatPrice";
+
+export type ShopProductOption = {
+  id: string;
+  name: string;
+  quantity: string;
+  price: number;
+};
 
 export type ShopProduct = {
   _id: string;
   name: string;
   description: string;
   price: number;
+  categoryId: string | null;
+  options: ShopProductOption[];
   imageUrls: string[];
   imageUrl?: string;
   videoUrl?: string;
 };
 
+export type ShopCategory = {
+  id: string;
+  name: string;
+};
+
+type CartLine = {
+  key: string;
+  productId: string;
+  optionId: string | undefined;
+  productName: string;
+  optionName: string;
+  optionQuantity: string;
+  unitPrice: number;
+  quantity: number;
+  total: number;
+};
+
+function getImages(product: ShopProduct) {
+  if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+    return product.imageUrls;
+  }
+  if (product.imageUrl) return [product.imageUrl];
+  return [];
+}
+
+function getPurchaseOptions(product: ShopProduct): ShopProductOption[] {
+  if (Array.isArray(product.options) && product.options.length > 0) {
+    return product.options;
+  }
+
+  return [
+    {
+      id: "",
+      name: product.name,
+      quantity: "",
+      price: product.price
+    }
+  ];
+}
+
+function getMinPrice(product: ShopProduct): number {
+  const options = getPurchaseOptions(product);
+  return Math.min(...options.map((opt) => opt.price));
+}
+
 export default function ShopClient({
   products,
+  categories,
   ownerPublicKey
 }: {
   products: ShopProduct[];
+  categories: ShopCategory[];
   ownerPublicKey: string;
 }) {
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [activeIndexes, setActiveIndexes] = useState<Record<string, number>>({});
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [galleryIndex, setGalleryIndex] = useState(0);
-  const [galleryMode, setGalleryMode] = useState<"image" | "video">("image");
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
-  const getImages = (product: ShopProduct) => {
-    if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
-      return product.imageUrls;
-    }
-    if (product.imageUrl) return [product.imageUrl];
-    return [];
-  };
-
-  const getVideo = (product: ShopProduct) => {
-    if (product.videoUrl && product.videoUrl.length > 0) return product.videoUrl;
-    return null;
-  };
+  useEffect(() => {
+    const syncCart = () => setCartItems(readCartItems());
+    syncCart();
+    window.addEventListener(CART_UPDATED_EVENT, syncCart);
+    window.addEventListener("storage", syncCart);
+    return () => {
+      window.removeEventListener(CART_UPDATED_EVENT, syncCart);
+      window.removeEventListener("storage", syncCart);
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -76,20 +139,51 @@ export default function ShopClient({
     return () => clearInterval(timer);
   }, [products]);
 
-  const totalPrice = useMemo(() => {
-    return products.reduce((sum, product) => {
-      const qty = quantities[product._id] || 0;
-      return sum + product.price * qty;
-    }, 0);
-  }, [products, quantities]);
+  const visibleProducts = useMemo(() => {
+    if (!activeCategoryId) return products;
+    return products.filter((product) => product.categoryId === activeCategoryId);
+  }, [activeCategoryId, products]);
 
-  const handleQuantity = (id: string, delta: number) => {
-    setQuantities((prev) => {
-      const next = { ...prev };
-      next[id] = Math.max(0, (next[id] || 0) + delta);
-      if (next[id] === 0) delete next[id];
-      return next;
-    });
+  const activeCategoryName =
+    categories.find((category) => category.id === activeCategoryId)?.name ?? "Tutte le categorie";
+
+  const productMap = useMemo(
+    () => new Map(products.map((product) => [product._id, product] as const)),
+    [products]
+  );
+
+  const cartLines = useMemo<CartLine[]>(() => {
+    return cartItems
+      .map((item) => {
+        const product = productMap.get(item.productId);
+        if (!product) return null;
+        const option =
+          getPurchaseOptions(product).find((candidate) => candidate.id === (item.optionId ?? "")) ??
+          getPurchaseOptions(product)[0];
+        if (!option) return null;
+        const total = option.price * item.quantity;
+        return {
+          key: cartItemKey(item),
+          productId: product._id,
+          optionId: option.id || undefined,
+          productName: product.name,
+          optionName: option.name || product.name,
+          optionQuantity: option.quantity,
+          unitPrice: option.price,
+          quantity: item.quantity,
+          total
+        };
+      })
+      .filter((line): line is CartLine => Boolean(line));
+  }, [cartItems, productMap]);
+
+  const totalPrice = useMemo(() => {
+    return cartLines.reduce((sum, line) => sum + line.total, 0);
+  }, [cartLines]);
+
+  const handleQuantity = (productId: string, optionId: string | undefined, delta: number) => {
+    addCartItem(productId, optionId, delta);
+    setCartItems(readCartItems());
   };
 
   const handleSubmit = async () => {
@@ -99,17 +193,18 @@ export default function ShopClient({
       return;
     }
 
-    setLoading(true);
-
-    const selected = Object.entries(quantities)
-      .filter(([, qty]) => qty > 0)
-      .map(([productId, quantity]) => ({ productId, quantity }));
+    const selected = cartLines.map((line) => ({
+      productId: line.productId,
+      optionId: line.optionId,
+      quantity: line.quantity
+    }));
 
     if (!selected.length) {
-      setStatus("Seleziona almeno un prodotto.");
-      setLoading(false);
+      setStatus("Aggiungi almeno un prodotto al carrello.");
       return;
     }
+
+    setLoading(true);
 
     try {
       if (!ownerPublicKey) {
@@ -138,7 +233,8 @@ export default function ShopClient({
       }
 
       setStatus("Richiesta inviata. Attendi la conferma di un admin.");
-      setQuantities({});
+      clearCartItems();
+      setCartItems([]);
       setMessage("");
     } catch {
       setStatus("Errore crittografico: richiesta non inviata.");
@@ -148,82 +244,147 @@ export default function ShopClient({
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-      <div className="grid gap-6 md:grid-cols-2">
-        {products.map((product) => {
-          const images = getImages(product);
-          const videoUrl = getVideo(product);
-          const activeIndex = activeIndexes[product._id] ?? 0;
-          const activeImage = images[activeIndex] ?? images[0] ?? "";
+    <div className="grid gap-8 md:grid-cols-[1fr_320px] lg:grid-cols-[1fr_360px]">
+      <div className="min-w-0">
+        <div className="mb-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={categoryOpen}
+            onClick={() => setCategoryOpen(!categoryOpen)}
+          >
+            {activeCategoryName}
+          </Button>
+          
+          {categoryOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/70"
+                onClick={() => setCategoryOpen(false)}
+              />
+              <div className="fixed top-1/2 left-1/2 z-50 w-80 max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-black p-4 shadow-2xl">
+                <button
+                  type="button"
+                  className="w-full rounded-xl px-3 py-3 text-left text-sm font-medium text-white hover:bg-white/10 transition"
+                  onClick={() => {
+                    setActiveCategoryId(null);
+                    setCategoryOpen(false);
+                  }}
+                >
+                  Tutti i prodotti
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className="w-full rounded-xl px-3 py-3 text-left text-sm font-medium text-white hover:bg-white/10 transition"
+                    onClick={() => {
+                      setActiveCategoryId(category.id);
+                      setCategoryOpen(false);
+                    }}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
-          return (
-            <Card key={product._id}>
-              <div
-                className="mb-4 h-40 overflow-hidden rounded-2xl border border-white/10 bg-white/5"
-                onClick={() => {
-                  if (!images.length && !videoUrl) return;
-                  setSelectedId(product._id);
-                  if (images.length) {
-                    setGalleryMode("image");
-                    setGalleryIndex(activeIndex);
-                  } else {
-                    setGalleryMode("video");
-                    setGalleryIndex(0);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && (images.length || videoUrl)) {
-                    setSelectedId(product._id);
-                    if (images.length) {
-                      setGalleryMode("image");
-                      setGalleryIndex(activeIndex);
-                    } else {
-                      setGalleryMode("video");
-                      setGalleryIndex(0);
-                    }
-                  }
-                }}
-              >
-                {activeImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={activeImage}
-                    alt={product.name}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs text-muted">
-                    Nessuna immagine
-                  </div>
-                )}
-              </div>
-              <h3 className="text-lg font-semibold">{product.name}</h3>
-              <p className="mt-2 text-sm text-muted">{product.description}</p>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="font-semibold">EUR {product.price}</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleQuantity(product._id, -1)}>
-                    -
-                  </Button>
-                  <span className="text-sm">{quantities[product._id] || 0}</span>
-                  <Button variant="outline" size="sm" onClick={() => handleQuantity(product._id, 1)}>
-                    +
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+        {visibleProducts.length === 0 ? (
+          <Card>
+            <p className="text-sm text-muted">Nessun prodotto in questa categoria.</p>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            {visibleProducts.map((product) => {
+              const images = getImages(product);
+              const activeIndex = activeIndexes[product._id] ?? 0;
+              const activeImage = images[activeIndex] ?? images[0] ?? "";
+              const firstOption = getPurchaseOptions(product)[0];
+
+              return (
+                <Link
+                  key={product._id}
+                  href={`/user/products/${product._id}`}
+                  className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember/60"
+                >
+                  <Card className="flex h-full cursor-pointer flex-col transition hover:-translate-y-1 hover:border-white/20">
+                    <div className="mb-4 h-40 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                      {activeImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={activeImage}
+                          alt={product.name}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-muted">
+                          Nessuna immagine
+                        </div>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-semibold">{product.name}</h3>
+                    <p className="mt-2 line-clamp-3 text-sm text-muted">{product.description}</p>
+                    <div className="mt-auto flex items-center justify-between pt-4">
+                      <span className="font-semibold">Da {formatEuro(getMinPrice(product))}</span>
+                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-muted">
+                        Apri
+                      </span>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Card className="sticky top-10 h-fit">
-        <h3 className="text-lg font-semibold">La tua richiesta</h3>
-        <p className="mt-2 text-sm text-muted">
-          Messaggio cifrato end-to-end, leggibile solo dall&apos;owner.
-        </p>
+        <h3 className="text-lg font-semibold">Carrello</h3>
         <div className="mt-4 space-y-4">
+          {cartLines.length ? (
+            <div className="space-y-3">
+              {cartLines.map((line) => (
+                <div
+                  key={line.key}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{line.optionName}</p>
+                      <p className="text-xs text-muted">
+                        {line.optionQuantity ? `${line.optionQuantity} - ` : ""}
+                        {formatEuro(line.unitPrice)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold">{formatEuro(line.total)}</p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleQuantity(line.productId, line.optionId, -1)}
+                    >
+                      -
+                    </Button>
+                    <span className="min-w-6 text-center text-sm">{line.quantity}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleQuantity(line.productId, line.optionId, 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-muted">
+              Il carrello e vuoto.
+            </p>
+          )}
           <Input
             label="Messaggio personalizzato"
             value={message}
@@ -232,7 +393,7 @@ export default function ShopClient({
           />
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted">Totale</span>
-            <span className="font-semibold">EUR {totalPrice}</span>
+            <span className="font-semibold">{formatEuro(totalPrice)}</span>
           </div>
           {status ? <p className="text-sm text-ember">{status}</p> : null}
           <Button onClick={handleSubmit} disabled={loading}>
@@ -240,91 +401,6 @@ export default function ShopClient({
           </Button>
         </div>
       </Card>
-
-      {selectedId ? (() => {
-        const selectedProduct = products.find((p) => p._id === selectedId);
-        if (!selectedProduct) return null;
-        const images = getImages(selectedProduct);
-        const videoUrl = getVideo(selectedProduct);
-        if (!images.length && !videoUrl) return null;
-        const current = images[galleryIndex] ?? images[0];
-
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6"
-            onClick={() => setSelectedId(null)}
-          >
-            <div
-              className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-muted">Galleria</p>
-                  <h3 className="text-xl font-semibold">{selectedProduct.name}</h3>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setSelectedId(null)}>
-                  Chiudi
-                </Button>
-              </div>
-              <div className="mt-4 grid flex-1 min-h-0 gap-4 overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6 lg:grid-cols-[2fr_1fr]">
-                <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3]">
-                  {galleryMode === "image" && current ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={current}
-                      alt={selectedProduct.name}
-                      className="absolute inset-0 h-full w-full object-contain"
-                    />
-                  ) : null}
-                  {galleryMode === "video" && videoUrl ? (
-                    <video
-                      controls
-                      className="absolute inset-0 h-full w-full object-contain"
-                      src={videoUrl}
-                    />
-                  ) : null}
-                </div>
-                <div className="flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-1">
-                  {images.map((src, index) => (
-                    <button
-                      key={`${selectedProduct._id}-${index}`}
-                      type="button"
-                      className={`flex-shrink-0 overflow-hidden rounded-2xl border ${
-                        index === galleryIndex
-                          ? "border-emerald-400/70"
-                          : "border-white/10"
-                      } w-24 sm:w-full`}
-                      onClick={() => {
-                        setGalleryMode("image");
-                        setGalleryIndex(index);
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={src}
-                        alt={`${selectedProduct.name} ${index + 1}`}
-                        className="h-20 w-full object-contain sm:h-24"
-                      />
-                    </button>
-                  ))}
-                  {videoUrl ? (
-                    <button
-                      type="button"
-                      className={`flex h-20 w-24 flex-shrink-0 items-center justify-center rounded-2xl border text-sm sm:h-24 sm:w-full ${
-                        galleryMode === "video" ? "border-emerald-400/70" : "border-white/10"
-                      }`}
-                      onClick={() => setGalleryMode("video")}
-                    >
-                      Video
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })() : null}
     </div>
   );
 }

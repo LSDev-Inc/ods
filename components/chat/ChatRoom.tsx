@@ -8,6 +8,7 @@ import { Input } from "../ui/input";
 import { Card } from "../ui/card";
 import { useKeyring } from "../KeyringProvider";
 import type { ChatStatus } from "../../db/models/Chat";
+import { formatEuro } from "../../lib/formatPrice";
 
 export type ChatMessage = {
   id: string;
@@ -254,7 +255,7 @@ export default function ChatRoom({
   return (
     <div className="space-y-6">
       {canDelete ? (
-        <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs text-muted">Azioni chat</p>
             <p className="text-xs text-muted">
@@ -264,12 +265,12 @@ export default function ChatRoom({
               </span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             {chatStatus !== "completed" ? (
               <Button
                 size="sm"
                 variant="outline"
-                className="border-emerald-500/60 text-emerald-400 hover:border-emerald-400"
+                className="border-emerald-500/60 text-emerald-400 hover:border-emerald-400 w-full sm:w-auto"
                 onClick={handleComplete}
               >
                 Imposta su concluso
@@ -278,7 +279,7 @@ export default function ChatRoom({
             <Button
               size="sm"
               variant="outline"
-              className="border-ember/50 text-ember hover:border-ember"
+              className="border-ember/50 text-ember hover:border-ember w-full sm:w-auto"
               onClick={handleDelete}
               disabled={deleting}
             >
@@ -316,7 +317,7 @@ export default function ChatRoom({
               </p>
               <p className="text-xs text-emerald-300">
                 {requestInfo.products
-                  .map((p) => `Q.tà ${p.quantity} · EUR ${p.price}`)
+                  .map((p) => `Q.tà ${p.quantity} · ${formatEuro(p.price)}`)
                   .join(" | ")}
               </p>
             </div>

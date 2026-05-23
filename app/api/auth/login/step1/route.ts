@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await dbConnect();
-    } catch (err) {
-      console.error("login step1: db connect error", err);
+    } catch {
       return jsonError("Database non raggiungibile", 500);
     }
     const user = await User.findOne({ usernameHash }).lean();
@@ -52,15 +51,13 @@ export async function POST(request: NextRequest) {
 
     const decryptedUsername = await decryptString(user.username);
     if (!user.passwordHash) {
-      console.error("login step1: passwordHash mancante per", decryptedUsername);
       return jsonError("Credenziali non valide", 401);
     }
 
     let ok = false;
     try {
       ok = await verifySecret(user.passwordHash, password);
-    } catch (err) {
-      console.error("login step1: verifySecret error", err);
+    } catch {
       return jsonError("Errore server", 500);
     }
     if (!ok) {
@@ -80,8 +77,7 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (err) {
-    console.error("login step1 error", err);
+  } catch {
     return jsonError("Errore server", 500);
   }
 }

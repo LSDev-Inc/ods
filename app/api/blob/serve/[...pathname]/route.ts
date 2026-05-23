@@ -28,7 +28,7 @@ export async function GET(
         headers: { Range: range }
       });
     } catch (err) {
-      console.warn("Blob range fetch failed, retrying without range:", err);
+      void err;
       result = null;
     }
   }
@@ -70,7 +70,9 @@ export async function GET(
     headers.set("Accept-Ranges", "bytes");
   }
   headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Cache-Control", "private, no-cache");
+  headers.set("Cache-Control", "private, no-store, max-age=0");
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   if (contentRange) {
     const match = /bytes\s+(\d+)-(\d+)\/(\d+|\*)/i.exec(contentRange);
     if (match) {

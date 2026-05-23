@@ -57,18 +57,24 @@ export async function encryptString(value?: string | null) {
 export async function decryptString(value?: string | null) {
   if (!value) return "";
   if (!isEncrypted(value)) return value;
-  const payload = value.slice(PREFIX.length);
-  const [ivBase64, cipherBase64] = payload.split(":");
-  if (!ivBase64 || !cipherBase64) {
-    throw new Error("Formato cifrato non valido.");
+  try {
+    const payload = value.slice(PREFIX.length);
+    const [ivBase64, cipherBase64] = payload.split(":");
+    if (!ivBase64 || !cipherBase64) {
+      console.warn("Formato cifrato non valido, ritornando stringa vuota.");
+      return "";
+    }
+    const key = await getDataKey();
+    const plaintext = await subtle.decrypt(
+      { name: "AES-GCM", iv: new Uint8Array(base64ToBuffer(ivBase64)) },
+      key,
+      base64ToBuffer(cipherBase64)
+    );
+    return TEXT_DECODER.decode(plaintext);
+  } catch (error) {
+    console.warn("Errore durante la decrittazione:", error instanceof Error ? error.message : String(error));
+    return "";
   }
-  const key = await getDataKey();
-  const plaintext = await subtle.decrypt(
-    { name: "AES-GCM", iv: new Uint8Array(base64ToBuffer(ivBase64)) },
-    key,
-    base64ToBuffer(cipherBase64)
-  );
-  return TEXT_DECODER.decode(plaintext);
 }
 
 export async function encryptNumber(value?: number | null) {
@@ -98,10 +104,15 @@ export async function decryptDate(value: unknown) {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value !== "string") return null;
-  const decrypted = await decryptString(value);
-  const date = new Date(decrypted);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
+  try {
+    const decrypted = await decryptString(value);
+    const date = new Date(decrypted);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  } catch (error) {
+    console.warn("Errore durante la decrittazione della data:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
 }
 
 export async function decryptDateToISOString(value: unknown) {

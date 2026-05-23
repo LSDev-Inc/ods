@@ -48,8 +48,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await db.dropDatabase();
-  } catch (err) {
-    console.error("destroy db error", err);
+  } catch {
     return jsonError("Errore server", 500);
   }
 

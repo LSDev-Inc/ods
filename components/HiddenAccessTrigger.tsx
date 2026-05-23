@@ -24,10 +24,16 @@ export default function HiddenAccessTrigger() {
 
   const handleSubmit = async () => {
     setError(null);
+    const normalizedPin = pin.trim();
+    if (normalizedPin.length < 4) {
+      setError("Inserisci il PIN completo.");
+      return;
+    }
+
     const res = await fetch("/api/auth/access-pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin })
+      body: JSON.stringify({ pin: normalizedPin })
     });
 
     if (res.ok) {

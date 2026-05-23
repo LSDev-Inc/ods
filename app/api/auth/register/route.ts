@@ -29,8 +29,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await dbConnect();
-    } catch (err) {
-      console.error("register: db connect error", err);
+    } catch {
       return jsonError("Database non raggiungibile", 500);
     }
 
@@ -59,8 +58,7 @@ export async function POST(request: NextRequest) {
     });
 
     return jsonOk({ ok: true }, 201);
-  } catch (err) {
-    console.error("register error", err);
+  } catch {
     return jsonError("Errore server", 500);
   }
 }

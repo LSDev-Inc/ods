@@ -1,12 +1,27 @@
 import { NextRequest } from "next/server";
 import { dbConnect } from "../../../db/connection";
-import { Product } from "../../../db/models";
+import { Category, Product } from "../../../db/models";
 import { getSessionFromRequest } from "../../../lib/auth/request";
 import { jsonError, jsonOk } from "../../../lib/http";
 import { productCreateSchema } from "../../../lib/validators";
 import { encryptDate, encryptNumber, encryptString } from "../../../lib/crypto/data";
 import { serializeProduct } from "../../../lib/products/serializer";
 import { isAllowedMediaRef, normalizeMediaRef } from "../../../lib/media";
+
+async function encryptOptions(
+  options: { id?: string; name: string; quantity?: string; price: number }[] | undefined
+) {
+  if (!options?.length) return [];
+
+  return Promise.all(
+    options.map(async (option) => ({
+      ...(option.id ? { _id: option.id } : {}),
+      name: await encryptString(option.name.trim()),
+      quantity: await encryptString(option.quantity?.trim() ?? ""),
+      price: await encryptNumber(option.price)
+    }))
+  );
+}
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
@@ -33,6 +48,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return jsonError("Dati non validi", 400);
 
   await dbConnect();
+  if (parsed.data.categoryId) {
+    const category = await Category.findById(parsed.data.categoryId).select("_id").lean();
+    if (!category) return jsonError("Categoria non valida", 400);
+  }
+
   const imageUrls =
     parsed.data.imageUrls && parsed.data.imageUrls.length > 0
       ? parsed.data.imageUrls
@@ -51,10 +71,13 @@ export async function POST(request: NextRequest) {
   }
 
   const encryptedImages = await Promise.all(normalizedImages.map((url) => encryptString(url)));
+  const encryptedOptions = await encryptOptions(parsed.data.options);
   const created = await Product.create({
     name: await encryptString(parsed.data.name),
-    description: await encryptString(parsed.data.description),
+    description: await encryptString(parsed.data.description?.trim() ?? ""),
     price: await encryptNumber(parsed.data.price),
+    categoryId: parsed.data.categoryId ?? null,
+    options: encryptedOptions,
     imageUrls: encryptedImages,
     imageUrl: encryptedImages[0] ?? "",
     videoUrl: await encryptString(normalizedVideo),

@@ -28,6 +28,7 @@ export const requestSchema = z.object({
   products: z.array(
     z.object({
       productId: z.string().min(12),
+      optionId: z.string().min(12).optional(),
       quantity: z.number().int().min(1).max(20)
     })
   ),
@@ -35,6 +36,21 @@ export const requestSchema = z.object({
   customMessageCiphertext: z.string().min(10),
   customMessageIv: z.string().min(10),
   customMessageEncryptedSymKey: z.string().min(10)
+});
+
+export const categoryCreateSchema = z.object({
+  name: z.string().min(2).max(64)
+});
+
+export const categoryUpdateSchema = z.object({
+  name: z.string().min(2).max(64)
+});
+
+const productOptionSchema = z.object({
+  id: z.string().min(12).optional(),
+  name: z.string().min(2).max(80),
+  quantity: z.string().max(60).optional(),
+  price: z.number().min(0)
 });
 
 export const messageSchema = z.object({
@@ -66,8 +82,10 @@ export const adminUpdateSchema = z.object({
 
 export const productCreateSchema = z.object({
   name: z.string().min(2).max(80),
-  description: z.string().min(4).max(280),
+  description: z.string().max(280).default(""),
   price: z.number().min(0),
+  categoryId: z.string().min(12).nullable().optional(),
+  options: z.array(productOptionSchema).max(20).optional(),
   imageUrls: z.array(z.string().max(2000000)).min(1).optional(),
   imageUrl: z.string().max(2000000).optional(),
   videoUrl: z.string().max(10000000).optional()
@@ -78,8 +96,10 @@ export const productCreateSchema = z.object({
 
 export const productUpdateSchema = z.object({
   name: z.string().min(2).max(80).optional(),
-  description: z.string().min(4).max(280).optional(),
+  description: z.string().max(280).optional(),
   price: z.number().min(0).optional(),
+  categoryId: z.string().min(12).nullable().optional(),
+  options: z.array(productOptionSchema).max(20).optional(),
   imageUrls: z.array(z.string().max(2000000)).min(1).optional(),
   imageUrl: z.string().max(2000000).optional(),
   videoUrl: z.string().max(10000000).optional()

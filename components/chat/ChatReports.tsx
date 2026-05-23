@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../ui/card";
+import { formatEuro } from "../../lib/formatPrice";
 
 type ReportProduct = {
   productId: string;
@@ -64,20 +65,20 @@ export default function ChatReports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold">Resoconti chat concluse</h2>
         <p className="text-sm font-semibold text-emerald-400">
-          Guadagno totale: EUR {totalRevenue.toFixed(2)}
+          Guadagno totale: {formatEuro(totalRevenue)}
         </p>
       </div>
 
       <div className="grid gap-4">
         {chats.map((report: ReportEntry) => (
           <Card key={report.id} className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
               <p className="text-xs text-muted">Chat {report.chatId?.slice(-6)}</p>
               <p className="text-sm font-semibold text-emerald-400">
-                Totale chat: EUR {report.total.toFixed(2)}
+                Totale chat: {formatEuro(report.total)}
               </p>
             </div>
 
@@ -85,10 +86,10 @@ export default function ChatReports() {
               {report.products.map((product, index) => (
                 <div
                   key={`${report.id}-${product.productId}-${index}`}
-                  className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+                  className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 overflow-hidden rounded-lg border border-white/10 bg-black/20">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="h-12 w-12 overflow-hidden rounded-lg border border-white/10 bg-black/20 flex-shrink-0">
                       {product.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -102,13 +103,13 @@ export default function ChatReports() {
                         </div>
                       )}
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold">{product.name || "Prodotto"}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold break-words">{product.name || "Prodotto"}</p>
                       <p className="text-xs text-muted">Quantita: {product.quantity}</p>
                     </div>
                   </div>
                   <div className="text-sm font-semibold text-emerald-400">
-                    EUR {(product.priceAtSale * product.quantity).toFixed(2)}
+                    {formatEuro(product.priceAtSale * product.quantity)}
                   </div>
                 </div>
               ))}

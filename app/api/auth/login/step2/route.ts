@@ -40,8 +40,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await dbConnect();
-    } catch (err) {
-      console.error("login step2: db connect error", err);
+    } catch {
       return jsonError("Database non raggiungibile", 500);
     }
     const user = await User.findById(stepPayload.sub).lean();
@@ -51,15 +50,13 @@ export async function POST(request: NextRequest) {
 
     const decryptedUsername = await decryptString(user.username);
     if (!user.pinOrPassphraseHash) {
-      console.error("login step2: pinOrPassphraseHash mancante per", decryptedUsername);
       return jsonError("PIN o passphrase non valida", 401);
     }
 
     let ok = false;
     try {
       ok = await verifySecret(user.pinOrPassphraseHash, parsed.data.pinOrPassphrase);
-    } catch (err) {
-      console.error("login step2: verifySecret error", err);
+    } catch {
       return jsonError("Errore server", 500);
     }
     if (!ok) {
@@ -89,8 +86,7 @@ export async function POST(request: NextRequest) {
     response.cookies.delete(cookieNames.step);
 
     return response;
-  } catch (err) {
-    console.error("login step2 error", err);
+  } catch {
     return jsonError("Errore server", 500);
   }
 }

@@ -1,33 +1,41 @@
-﻿import { dbConnect } from "../../db/connection";
-import { Product, User } from "../../db/models";
+import { dbConnect } from "../../db/connection";
+import { Category, Product, User } from "../../db/models";
 import ShopClient from "../../components/shop/ShopClient";
 import { Card } from "../../components/ui/card";
+import { serializeCategory } from "../../lib/categories/serializer";
 import { serializeProduct } from "../../lib/products/serializer";
 
 async function getData() {
   await dbConnect();
-  const [products, owner] = await Promise.all([
-    Product.find({}).limit(6).lean(),
+  const [products, categories, owner] = await Promise.all([
+    Product.find({}).lean(),
+    Category.find({}).lean(),
     User.findOne({ role: "owner" }).lean()
   ]);
   const serialized = await Promise.all(products.map((product) => serializeProduct(product)));
+  const serializedCategories = await Promise.all(
+    categories.map((category) => serializeCategory(category))
+  );
   const safeProducts = serialized.map((product) => ({
     _id: product.id,
     name: product.name || "Prodotto",
     description: product.description ?? "",
     price: product.price ?? 0,
+    categoryId: product.categoryId,
+    options: product.options,
     imageUrls: product.imageUrls,
     videoUrl: product.videoUrl ?? ""
   }));
 
   return {
     products: safeProducts,
+    categories: serializedCategories.filter((category) => category.name),
     ownerPublicKey: owner && !Array.isArray(owner) ? owner.publicKey : ""
   };
 }
 
 export default async function UserShopPage() {
-  const { products, ownerPublicKey } = await getData();
+  const { products, categories, ownerPublicKey } = await getData();
 
   if (!ownerPublicKey) {
     return (
@@ -59,7 +67,7 @@ export default async function UserShopPage() {
           Seleziona i prodotti e invia una richiesta cifrata end-to-end.
         </p>
       </div>
-      <ShopClient products={products} ownerPublicKey={ownerPublicKey} />
+      <ShopClient products={products} categories={categories} ownerPublicKey={ownerPublicKey} />
     </section>
   );
 }

@@ -1,10 +1,14 @@
-﻿import mongoose, { Schema, Types } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
 export type RequestStatus = "pending" | "accepted" | "rejected";
 
 export interface IRequestProduct {
   productId: Types.ObjectId;
+  optionId?: Types.ObjectId | null;
   quantity: number;
+  optionName?: string;
+  optionQuantity?: string;
+  unitPrice?: string;
 }
 
 export interface IRequest {
@@ -25,7 +29,11 @@ const RequestSchema = new Schema<IRequest>(
     products: [
       {
         productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
-        quantity: { type: Number, required: true }
+        optionId: { type: Schema.Types.ObjectId, default: null },
+        quantity: { type: Number, required: true },
+        optionName: { type: String, default: "" },
+        optionQuantity: { type: String, default: "" },
+        unitPrice: { type: String, default: "" }
       }
     ],
     totalPrice: { type: String, required: true },
@@ -39,4 +47,5 @@ const RequestSchema = new Schema<IRequest>(
   { timestamps: false }
 );
 
-export const Request = mongoose.models.Request || mongoose.model<IRequest>("Request", RequestSchema);
+export const Request =
+  mongoose.models.Request || mongoose.model<IRequest>("Request", RequestSchema);

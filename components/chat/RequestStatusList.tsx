@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "../ui/card";
+import { formatEuro } from "../../lib/formatPrice";
 
 export type RequestStatusItem = {
   id: string;
@@ -45,7 +46,7 @@ export default function RequestStatusList() {
             <p className="text-sm font-semibold">Richiesta {item.id.slice(-6)}</p>
             <p className="text-xs text-muted">Stato: {item.status}</p>
           </div>
-          <span className="text-sm">EUR {item.totalPrice}</span>
+          <span className="text-sm">{formatEuro(item.totalPrice)}</span>
         </Card>
       ))}
     </div>

@@ -4,7 +4,14 @@ import { requestSchema } from "../../../lib/validators";
 import { dbConnect } from "../../../db/connection";
 import { Product, Request, User } from "../../../db/models";
 import { getSessionFromRequest } from "../../../lib/auth/request";
-import { decryptDateToISOString, decryptNumber, decryptString, encryptDate, encryptNumber } from "../../../lib/crypto/data";
+import {
+  decryptDateToISOString,
+  decryptNumber,
+  decryptString,
+  encryptDate,
+  encryptNumber,
+  encryptString
+} from "../../../lib/crypto/data";
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
@@ -42,6 +49,16 @@ export async function GET(request: NextRequest) {
         userId: String(req.userId),
         username: userMap.get(req.userId.toString()) ?? "user",
         status: req.status,
+        products: await Promise.all(
+          (req.products ?? []).map(async (item: any) => ({
+            productId: String(item.productId ?? ""),
+            optionId: item.optionId ? String(item.optionId) : null,
+            quantity: item.quantity ?? 0,
+            optionName: await decryptString(item.optionName ?? ""),
+            optionQuantity: await decryptString(item.optionQuantity ?? ""),
+            unitPrice: await decryptNumber(item.unitPrice ?? 0)
+          }))
+        ),
         totalPrice: await decryptNumber(req.totalPrice ?? 0),
         customMessageCiphertext: req.customMessageCiphertext,
         customMessageIv: req.customMessageIv,
@@ -71,26 +88,50 @@ export async function POST(request: NextRequest) {
     return jsonError("Hai gia una richiesta in attesa. Attendi che venga gestita.", 409);
   }
 
-  const productIds = parsed.data.products.map((item) => item.productId);
+  const productIds = Array.from(new Set(parsed.data.products.map((item) => item.productId)));
   const products = await Product.find({ _id: { $in: productIds } }).lean();
   if (products.length !== productIds.length) {
     return jsonError("Prodotti non validi", 400);
   }
-  const priceEntries = await Promise.all(
-    products.map(async (product) => [
-      String(product._id),
-      await decryptNumber(product.price ?? 0)
-    ] as const)
-  );
-  const priceMap = new Map(priceEntries);
-  const computedTotal = parsed.data.products.reduce((sum, item) => {
-    const price = priceMap.get(item.productId) ?? 0;
-    return sum + price * item.quantity;
-  }, 0);
+  const productMap = new Map(products.map((product) => [String(product._id), product]));
+  const requestProducts = [];
+  let computedTotal = 0;
+
+  for (const item of parsed.data.products) {
+    const product = productMap.get(item.productId);
+    if (!product) return jsonError("Prodotti non validi", 400);
+
+    const options = Array.isArray(product.options) ? product.options : [];
+    const option = item.optionId
+      ? options.find((candidate: any) => String(candidate?._id ?? "") === item.optionId)
+      : null;
+
+    if (item.optionId && !option) {
+      return jsonError("Quantita prodotto non valida", 400);
+    }
+
+    const unitPrice = option
+      ? await decryptNumber(option.price ?? 0)
+      : await decryptNumber(product.price ?? 0);
+    const optionName = option
+      ? await decryptString(option.name ?? "")
+      : await decryptString(product.name ?? "");
+    const optionQuantity = option ? await decryptString(option.quantity ?? "") : "";
+
+    computedTotal += unitPrice * item.quantity;
+    requestProducts.push({
+      productId: item.productId,
+      optionId: option ? String(option._id) : null,
+      quantity: item.quantity,
+      optionName: await encryptString(optionName),
+      optionQuantity: await encryptString(optionQuantity),
+      unitPrice: await encryptNumber(unitPrice)
+    });
+  }
 
   const doc = await Request.create({
     userId: session.sub,
-    products: parsed.data.products,
+    products: requestProducts,
     totalPrice: await encryptNumber(computedTotal),
     customMessageCiphertext: parsed.data.customMessageCiphertext,
     customMessageIv: parsed.data.customMessageIv,

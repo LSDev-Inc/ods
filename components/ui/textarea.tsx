@@ -8,12 +8,12 @@ export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, ...props }, ref) => {
     return (
-      <label className="flex flex-col gap-2 text-sm">
+      <label className="flex min-w-0 flex-col gap-2 text-sm">
         {label ? <span className="text-muted">{label}</span> : null}
         <textarea
           ref={ref}
           className={cn(
-            "input-surface min-h-[120px] rounded-2xl px-4 py-3 text-sm text-fog placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-ember/40",
+            "input-surface min-h-[120px] w-full min-w-0 rounded-2xl px-4 py-3 text-sm text-fog placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-ember/40",
             className
           )}
           {...props}
