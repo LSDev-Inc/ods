@@ -64,7 +64,7 @@ export default async function UserShopPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Shop riservato</h1>
         <p className="text-sm text-muted">
-          Seleziona i prodotti e invia una richiesta cifrata end-to-end.
+          Seleziona i prodotti e invia una richiesta cifrata per contattarci.
         </p>
       </div>
       <ShopClient products={products} categories={categories} ownerPublicKey={ownerPublicKey} />

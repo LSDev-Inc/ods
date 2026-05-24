@@ -18,7 +18,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "ODS Shop",
-  description: "Private shop demo con chat cifrata end-to-end"
+  description: ""
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

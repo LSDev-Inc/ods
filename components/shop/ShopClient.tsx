@@ -145,7 +145,7 @@ export default function ShopClient({
   }, [activeCategoryId, products]);
 
   const activeCategoryName =
-    categories.find((category) => category.id === activeCategoryId)?.name ?? "Tutte le categorie";
+    categories.find((category) => category.id === activeCategoryId)?.name ?? "Tutti i prodotti";
 
   const productMap = useMemo(
     () => new Map(products.map((product) => [product._id, product] as const)),
